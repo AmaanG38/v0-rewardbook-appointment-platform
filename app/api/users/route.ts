@@ -8,10 +8,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { name, email, password, role } = body
 
+    console.log("[v0] POST /api/users - Received body:", { name, email, role })
+    console.log("[v0] AIRTABLE_API_TOKEN exists:", !!process.env.AIRTABLE_API_TOKEN)
+    console.log("[v0] AIRTABLE_API_TOKEN length:", process.env.AIRTABLE_API_TOKEN?.length)
+
     if (!name || !email || !password || !role) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
+      )
+    }
+
+    if (!process.env.AIRTABLE_API_TOKEN) {
+      console.error("[v0] AIRTABLE_API_TOKEN is not set!")
+      return NextResponse.json(
+        { error: 'Airtable API token not configured' },
+        { status: 500 }
       )
     }
 
@@ -39,6 +51,8 @@ export async function POST(request: NextRequest) {
         }),
       }
     )
+
+    console.log("[v0] Airtable response status:", response.status)
 
     if (!response.ok) {
       const errorData = await response.json()
