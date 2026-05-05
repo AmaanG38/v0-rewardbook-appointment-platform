@@ -1,0 +1,31 @@
+# ===========================================
+# DEVELOPMENT DOCKERFILE FOR REWARDBOOK
+# Used for local development with hot reload
+# ===========================================
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* ./
+
+RUN \
+  if [ -f pnpm-lock.yaml ]; then \
+    corepack enable pnpm && pnpm install; \
+  elif [ -f yarn.lock ]; then \
+    yarn install; \
+  elif [ -f package-lock.json ]; then \
+    npm ci; \
+  else \
+    npm install; \
+  fi
+
+# Copy source code
+COPY . .
+
+# Expose development port
+EXPOSE 3000
+
+# Start development server with hot reload
+CMD ["npm", "run", "dev"]
