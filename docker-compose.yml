@@ -1,0 +1,76 @@
+# ===========================================
+# DOCKER COMPOSE FOR REWARDBOOK
+# Orchestrates the application container
+# ===========================================
+
+services:
+  # -------------------------------------------
+  # RewardBook Web Application
+  # The main Next.js application container
+  # -------------------------------------------
+  rewardbook:
+    # Build from local Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    # Container name for easy reference
+    container_name: rewardbook-app
+    
+    # Port mapping: host:container
+    ports:
+      - "3000:3000"
+    
+    # Environment variables
+    # These can be overridden with a .env file
+    environment:
+      - NODE_ENV=production
+      - AIRTABLE_API_TOKEN=${AIRTABLE_API_TOKEN}
+    
+    # Load environment variables from .env file if it exists
+    env_file:
+      - .env.local
+    
+    # Restart policy for reliability
+    # "unless-stopped" ensures the container restarts after crashes
+    # but respects manual stops
+    restart: unless-stopped
+    
+    # Resource limits (optional but recommended for production)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # -------------------------------------------
+  # Development Service (optional)
+  # Use this for local development with hot reload
+  # Run with: docker compose --profile dev up
+  # -------------------------------------------
+  rewardbook-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: rewardbook-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source code for hot reload
+      - .:/app
+      # Prevent overwriting node_modules
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - AIRTABLE_API_TOKEN=${AIRTABLE_API_TOKEN}
+    profiles:
+      - dev

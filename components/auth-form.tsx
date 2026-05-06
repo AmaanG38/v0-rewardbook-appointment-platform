@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
@@ -17,39 +17,87 @@ export function AuthForm() {
   const [password, setPassword] = useState("")
   const [role, setRole] = useState<"customer" | "admin">("customer")
   const [error, setError] = useState("")
+  const [isPending, startTransition] = useTransition()
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const { login, register } = useAuth()
   const router = useRouter()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const saveUserToAirtable = async (userData: {
+    name: string
+    email: string
+    password: string
+    role: "customer" | "admin"
+  }) => {
+    try {
+      const response = await fetch("/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(userData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error("Failed to save to Airtable:", errorData)
+        // Don't block registration if Airtable fails, just log it
+        return false
+      }
+
+      return true
+    } catch (error) {
+      console.error("Error saving to Airtable:", error)
+      return false
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setIsSubmitting(true)
 
-    if (mode === "login") {
-      const result = login(email, password)
-      if (result.success) {
-        toast.success("Welcome back!")
-        const user = { role } as { role: string }
-        // Re-read from context after login
-        const stored = localStorage.getItem("rb_current_user")
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          router.push(parsed.role === "admin" ? "/admin" : "/customer/book")
+    try {
+      if (mode === "login") {
+        const result = login(email, password)
+        if (result.success) {
+          toast.success("Welcome back!")
+          const stored = localStorage.getItem("rb_current_user")
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            router.push(parsed.role === "admin" ? "/admin" : "/customer/book")
+          }
+        } else {
+          setError(result.error || "Login failed")
         }
       } else {
-        setError(result.error || "Login failed")
+        if (!name.trim()) {
+          setError("Name is required")
+          return
+        }
+        
+        // Save to Airtable first
+        const savedToAirtable = await saveUserToAirtable({
+          name,
+          email,
+          password,
+          role,
+        })
+        
+        if (savedToAirtable) {
+          toast.success("Account synced to cloud!")
+        }
+
+        // Register locally regardless of Airtable status
+        const result = register(name, email, password, role)
+        if (result.success) {
+          toast.success("Account created successfully!")
+          router.push(role === "admin" ? "/admin" : "/customer/book")
+        } else {
+          setError(result.error || "Registration failed")
+        }
       }
-    } else {
-      if (!name.trim()) {
-        setError("Name is required")
-        return
-      }
-      const result = register(name, email, password, role)
-      if (result.success) {
-        toast.success("Account created successfully!")
-        router.push(role === "admin" ? "/admin" : "/customer/book")
-      } else {
-        setError(result.error || "Registration failed")
-      }
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -206,9 +254,13 @@ export function AuthForm() {
               </div>
             )}
 
-            <Button type="submit" className="h-11 w-full text-base font-medium cursor-pointer">
-              {mode === "login" ? "Sign In" : "Create Account"}
-              <ArrowRight className="ml-2 h-4 w-4" />
+            <Button type="submit" className="h-11 w-full text-base font-medium cursor-pointer" disabled={isSubmitting}>
+              {isSubmitting ? (
+                mode === "login" ? "Signing In..." : "Creating Account..."
+              ) : (
+                mode === "login" ? "Sign In" : "Create Account"
+              )}
+              {!isSubmitting && <ArrowRight className="ml-2 h-4 w-4" />}
             </Button>
           </form>
 
